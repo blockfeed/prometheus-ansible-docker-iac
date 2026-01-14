@@ -1,0 +1,27 @@
+global:
+  scrape_interval: {{ prometheus_scrape_interval }}
+  evaluation_interval: {{ prometheus_evaluation_interval }}
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # Prometheus scrapes itself.
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  # Host-level metrics (CPU, RAM, disk, network) via Node Exporter.
+  - job_name: "node"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # Container-level metrics (per-container CPU/mem/fs) via cAdvisor.
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]

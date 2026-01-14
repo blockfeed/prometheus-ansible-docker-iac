@@ -1,0 +1,17 @@
+---
+# Run everything (Docker bootstrap then monitoring stack):
+#   ansible-playbook -i inventory/hosts.ini site.yml -K
+#
+# Run only Docker bootstrap:
+#   ansible-playbook -i inventory/hosts.ini site.yml -K --tags docker
+#
+# Run only monitoring stack:
+#   ansible-playbook -i inventory/hosts.ini site.yml -K --tags monitoring
+#
+- name: Docker bootstrap
+  import_playbook: playbooks/docker-bootstrap.yml
+  tags: [docker]
+
+- name: Monitoring stack
+  import_playbook: playbooks/monitoring-stack.yml
+  tags: [monitoring]

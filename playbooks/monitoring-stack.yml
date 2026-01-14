@@ -1,0 +1,123 @@
+---
+- name: Deploy Prometheus + Alertmanager + Grafana + Node Exporter + cAdvisor with Docker Compose
+  hosts: monitoring_hosts
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Fail fast if Docker is not installed
+      ansible.builtin.command: sudo docker version
+      register: docker_check
+      changed_when: false
+      tags: [monitoring, preflight]
+
+    - name: Fail fast if Docker Compose plugin is not installed
+      ansible.builtin.command: sudo docker compose version
+      register: compose_check
+      changed_when: false
+      tags: [monitoring, preflight]
+
+  tasks:
+    - name: Create monitoring project directory
+      ansible.builtin.file:
+        path: "{{ monitoring_project_dir }}"
+        state: directory
+        mode: "0755"
+      tags: [monitoring, dirs]
+
+    - name: Create persistent bind mount directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ monitoring_data_root }}/prometheus"
+        - "{{ monitoring_data_root }}/prometheus/data"
+        - "{{ monitoring_data_root }}/alertmanager"
+        - "{{ monitoring_data_root }}/alertmanager/data"
+        - "{{ monitoring_data_root }}/grafana"
+        - "{{ monitoring_data_root }}/grafana/data"
+      tags: [monitoring, dirs]
+
+# Prometheus writes active query logs and TSDB data under /prometheus.
+# When using bind mounts, the host directory must be writable by the
+# container runtime UID/GID (65534 for prom/prometheus).
+
+    - name: Ensure Prometheus data dir ownership matches container user (UID/GID 65534)
+      ansible.builtin.file:
+        path: "{{ monitoring_data_root }}/prometheus/data"
+        state: directory
+        owner: "{{ prometheus_uid }}"
+        group: "{{ prometheus_gid }}"
+        mode: "0750"
+        recurse: true
+      tags: [monitoring, dirs]
+
+    - name: Ensure Grafana data dir ownership (Grafana runs as UID 472 in official image)
+      ansible.builtin.file:
+        path: "{{ monitoring_data_root }}/grafana/data"
+        state: directory
+        owner: "472"
+        group: "472"
+        mode: "0755"
+      tags: [monitoring, dirs]
+
+    - name: Render Prometheus config
+      ansible.builtin.template:
+        src: templates/prometheus/prometheus.yml.j2
+        dest: "{{ monitoring_project_dir }}/prometheus.yml"
+        mode: "0644"
+      tags: [monitoring, config]
+
+    - name: Render Prometheus alert rules
+      ansible.builtin.template:
+        src: templates/prometheus/alerts.yml.j2
+        dest: "{{ monitoring_project_dir }}/alerts.yml"
+        mode: "0644"
+      tags: [monitoring, config]
+
+    - name: Render Alertmanager config
+      ansible.builtin.template:
+        src: templates/alertmanager/alertmanager.yml.j2
+        dest: "{{ monitoring_project_dir }}/alertmanager.yml"
+        mode: "0644"
+      tags: [monitoring, config]
+
+    - name: Render Grafana provisioning (datasource)
+      ansible.builtin.template:
+        src: templates/grafana/provisioning/datasources/prometheus.yml.j2
+        dest: "{{ monitoring_project_dir }}/grafana-datasource-prometheus.yml"
+        mode: "0644"
+      tags: [monitoring, config]
+
+    - name: Render Grafana provisioning (dashboards provider)
+      ansible.builtin.template:
+        src: templates/grafana/provisioning/dashboards/dashboards.yml.j2
+        dest: "{{ monitoring_project_dir }}/grafana-dashboards-provider.yml"
+        mode: "0644"
+      tags: [monitoring, config]
+
+    - name: Render Docker Compose file
+      ansible.builtin.template:
+        src: templates/docker-compose.yml.j2
+        dest: "{{ monitoring_project_dir }}/docker-compose.yml"
+        mode: "0644"
+      tags: [monitoring, config]
+
+    - name: Bring stack up (pull images, create containers)
+      community.docker.docker_compose_v2:
+        project_src: "{{ monitoring_project_dir }}"
+        pull: always
+        state: present
+      tags: [monitoring, up]
+
+    - name: Show running containers
+      ansible.builtin.command: sudo docker ps --format "table {{'{{'}}.Names{{'}}'}}\t{{'{{'}}.Status{{'}}'}}\t{{'{{'}}.Ports{{'}}'}}"
+      register: docker_ps
+      changed_when: false
+      tags: [monitoring, verify]
+
+    - name: Print docker ps table
+      ansible.builtin.debug:
+        msg: "{{ docker_ps.stdout }}"
+      tags: [monitoring, verify]

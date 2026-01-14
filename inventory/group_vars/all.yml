@@ -1,0 +1,64 @@
+---
+# Global defaults. Override via:
+# - inventory host_vars/group_vars
+# - --extra-vars
+#
+# IMPORTANT:
+# - This project assumes you will connect over SSH as an unprivileged user and use sudo (run playbooks with -K).
+
+# Where the monitoring stack "project directory" lives on the target host.
+monitoring_project_dir: /opt/monitoring-stack
+
+# Persistent storage root for bind mounts.
+monitoring_data_root: /srv/monitoring
+
+# Prometheus retention policy (both are set).
+# Prometheus will keep samples for at most `prometheus_retention_time`,
+# but may delete older data sooner to satisfy `prometheus_retention_size`.
+prometheus_retention_time: 30d
+prometheus_retention_size: 10GB
+
+# Scrape interval and evaluation interval.
+prometheus_scrape_interval: 15s
+prometheus_evaluation_interval: 15s
+
+# Prometheus container runtime user
+# Official prom/prometheus image runs as nobody (65534)
+prometheus_uid: 65534
+prometheus_gid: 65534
+
+# Docker image versions.
+# Tip: pin these to a specific version once you're happy (better reproducibility).
+prometheus_image: prom/prometheus:latest
+alertmanager_image: prom/alertmanager:latest
+grafana_image: grafana/grafana:latest
+node_exporter_image: prom/node-exporter:latest
+cadvisor_image: gcr.io/cadvisor/cadvisor:latest
+
+# Grafana initial admin user and password.
+# For LAN-only homelab, defaults are OK, but you should change them.
+grafana_admin_user: admin
+grafana_admin_password: CHANGE_ME
+
+# LAN-only binding. If you later front this with a reverse proxy, adjust as needed.
+# Ports:
+# - Prometheus: 9090
+# - Alertmanager: 9093
+# - Grafana: 3000
+monitoring_bind_address: 0.0.0.0
+
+# Host ports (override to avoid collisions with other services on the host)
+prometheus_host_port: 9090
+alertmanager_host_port: 9093
+grafana_host_port: 3000
+node_exporter_host_port: 9100
+
+# Docker official install settings.
+docker_install_method: docker_official
+docker_apt_keyring: /etc/apt/keyrings/docker.gpg
+
+# Security posture:
+# - "sudo_only" means we do NOT add users to the docker group.
+# - This avoids effectively granting root-equivalent access via the docker socket.
+docker_privilege_model: sudo_only
+cadvisor_host_port: 8081

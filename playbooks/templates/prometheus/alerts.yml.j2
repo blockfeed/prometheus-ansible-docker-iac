@@ -1,0 +1,20 @@
+groups:
+  - name: basic-alerts
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "Target down (instance {{'{{'}} $labels.instance {{'}}'}})"
+          description: "Prometheus has not scraped {{'{{'}} $labels.job {{'}}'}} on {{'{{'}} $labels.instance {{'}}'}} for more than 2 minutes."
+
+      - alert: HostDiskSpaceLow
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) < 0.10
+        for: 10m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Low disk space (instance {{'{{'}} $labels.instance {{'}}'}})"
+          description: "Filesystem {{'{{'}} $labels.mountpoint {{'}}'}} has less than 10% free space."
