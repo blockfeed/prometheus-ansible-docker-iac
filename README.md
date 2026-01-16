@@ -1,4 +1,4 @@
-# prometheus-ansible-docker-iac
+# observability-stack-iac
 
 A working, end-to-end example of how I run infrastructure in a homelab: **Ansible as the source of truth**, Docker Compose for durable services, and an optional local Kubernetes sandbox (KIND) for practicing the same operational habits in a cluster-shaped environment.
 
