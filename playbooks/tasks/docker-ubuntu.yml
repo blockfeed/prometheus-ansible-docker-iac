@@ -1,0 +1,60 @@
+    - name: Install prerequisites for Docker apt repo
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+        update_cache: true
+      tags: [docker, packages]
+
+    - name: Ensure /etc/apt/keyrings exists
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+      tags: [docker, repo]
+
+    - name: Download Docker GPG key (ASCII)
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+      tags: [docker, repo]
+
+    - name: Dearmor Docker GPG key into keyring
+      ansible.builtin.command: >
+        gpg --dearmor -o {{ docker_apt_keyring }} /etc/apt/keyrings/docker.asc
+      args:
+        creates: "{{ docker_apt_keyring }}"
+      tags: [docker, repo]
+
+    - name: Get dpkg architecture (Debian/Ubuntu repo arch token)
+      ansible.builtin.command: dpkg --print-architecture
+      register: dpkg_arch
+      changed_when: false
+      tags: [docker, repo]
+
+    - name: Set Docker apt arch fact
+      ansible.builtin.set_fact:
+        docker_apt_arch: "{{ dpkg_arch.stdout }}"
+      tags: [docker, repo]
+
+    - name: Add Docker apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ docker_apt_arch }} signed-by={{ docker_apt_keyring }}] https://download.docker.com/linux/ubuntu {{ ansible_facts['distribution_release'] }} stable"
+        state: present
+        filename: docker
+      tags: [docker, repo]
+
+    - name: Install Docker Engine and Compose plugin
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+      tags: [docker, packages]

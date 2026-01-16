@@ -1,0 +1,111 @@
+---
+# node_exporter.yml
+# Minimal, idempotent node_exporter install for AlmaLinux 9.x (systemd)
+# Run: ansible-playbook -i inventory/hosts.ini node_exporter.yml -K
+
+- name: Install and run node_exporter on external Linux hosts
+  hosts: node_exporters_rhel
+  become: true
+  gather_facts: true
+
+  vars:
+    node_exporter_user: "node_exporter"
+    node_exporter_group: "node_exporter"
+    node_exporter_arch: "amd64"  # adjust if not x86_64
+    node_exporter_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}.tar.gz"
+    node_exporter_tmp: "/tmp/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}.tar.gz"
+    node_exporter_extract_dir: "/opt/node_exporter-{{ node_exporter_version }}"
+    node_exporter_bin_path: "/usr/local/bin/node_exporter"
+    node_exporter_listen: "0.0.0.0:9100"  # firewall-restrict later (preferred) rather than bind-address tricks
+
+  tasks:
+    - name: Assert this is AlmaLinux/RHEL-family
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.os_family == "RedHat"
+        fail_msg: "This play is intended for RHEL-family (Alma/Rocky/RHEL)."
+
+    - name: Ensure node_exporter group exists
+      ansible.builtin.group:
+        name: "{{ node_exporter_group }}"
+        system: true
+
+    - name: Ensure node_exporter user exists
+      ansible.builtin.user:
+        name: "{{ node_exporter_user }}"
+        group: "{{ node_exporter_group }}"
+        system: true
+        shell: /sbin/nologin
+        create_home: false
+
+    - name: Download node_exporter tarball
+      ansible.builtin.get_url:
+        url: "{{ node_exporter_url }}"
+        dest: "{{ node_exporter_tmp }}"
+        mode: "0644"
+        # If you want strict integrity, add:
+        # checksum: "sha256:PUT_SHA256_HERE"
+
+    - name: Create extract dir
+      ansible.builtin.file:
+        path: "{{ node_exporter_extract_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Ensure extraction dependencies are present
+      ansible.builtin.package:
+        name:
+          - tar
+          - gzip
+        state: present
+
+    - name: Extract node_exporter
+      ansible.builtin.unarchive:
+        src: "{{ node_exporter_tmp }}"
+        dest: "{{ node_exporter_extract_dir }}"
+        remote_src: true
+        extra_opts: [--strip-components=1]
+        creates: "{{ node_exporter_extract_dir }}/node_exporter"
+
+    - name: Install node_exporter binary
+      ansible.builtin.command:
+        cmd: "install -o root -g root -m 0755 {{ node_exporter_extract_dir }}/node_exporter {{ node_exporter_bin_path }}"
+      changed_when: false
+
+    - name: Install systemd unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/node_exporter.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Prometheus Node Exporter
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          User={{ node_exporter_user }}
+          Group={{ node_exporter_group }}
+          Type=simple
+          ExecStart={{ node_exporter_bin_path }} --web.listen-address={{ node_exporter_listen }}
+          Restart=on-failure
+          RestartSec=2s
+          NoNewPrivileges=true
+          ProtectSystem=strict
+          ProtectHome=true
+          PrivateTmp=true
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: reload systemd
+
+    - name: Enable and start node_exporter
+      ansible.builtin.service:
+        name: node_exporter
+        enabled: true
+        state: started
+
+  handlers:
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+

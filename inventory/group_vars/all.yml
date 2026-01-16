@@ -38,14 +38,14 @@ cadvisor_image: gcr.io/cadvisor/cadvisor:latest
 # Grafana initial admin user and password.
 # For LAN-only homelab, defaults are OK, but you should change them.
 grafana_admin_user: admin
-grafana_admin_password: CHANGE_ME
+grafana_admin_password: eD32p5&Xv1
 
 # LAN-only binding. If you later front this with a reverse proxy, adjust as needed.
 # Ports:
 # - Prometheus: 9090
 # - Alertmanager: 9093
 # - Grafana: 3000
-monitoring_bind_address: 0.0.0.0
+monitoring_bind_address: 192.0.2.10
 
 # Host ports (override to avoid collisions with other services on the host)
 prometheus_host_port: 9090
@@ -62,3 +62,15 @@ docker_apt_keyring: /etc/apt/keyrings/docker.gpg
 # - This avoids effectively granting root-equivalent access via the docker socket.
 docker_privilege_model: sudo_only
 cadvisor_host_port: 8081
+
+# KIND
+kind_cluster_name: kind-lab
+kind_worker_count: 2
+kind_wait: 120s
+kind_api_server_address: "127.0.0.1"
+kind_api_server_port: 6443
+
+# Pin versions explicitly (update when you want)
+kind_download_url: "https://kind.sigs.k8s.io/dl/v0.27.0/kind-linux-amd64"
+kubectl_download_url: "https://dl.k8s.io/release/v1.32.0/bin/linux/amd64/kubectl"
+

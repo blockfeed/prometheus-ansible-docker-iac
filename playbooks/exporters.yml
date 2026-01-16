@@ -1,0 +1,136 @@
+- name: Deploy node_exporter (Arch)
+  hosts: node_exporters_arch
+  become: true
+  tags: [exporters]
+  vars:
+    node_exporter_listen: "0.0.0.0:9100"
+  tasks:
+    - name: Install node_exporter package (Arch)
+      community.general.pacman:
+        name: prometheus-node-exporter
+        state: present
+        update_cache: false
+
+    - name: Enable and start node_exporter (Arch unit name)
+      ansible.builtin.systemd:
+        name: prometheus-node-exporter
+        enabled: true
+        state: started
+
+    - name: Verify node_exporter is listening on 9100 (Arch)
+      ansible.builtin.command: ss -ltnp
+      register: ss_out
+      changed_when: false
+
+    - name: Assert node_exporter is listening (Arch)
+      ansible.builtin.assert:
+        that:
+          - "':9100' in ss_out.stdout"
+        fail_msg: "node_exporter is not listening on :9100 on {{ inventory_hostname }}"
+
+- name: Deploy node_exporter (RHEL)
+  hosts: node_exporters_rhel
+  become: true
+  tags: [exporters]
+  vars:
+    node_exporter_version: "1.8.1"
+    node_exporter_arch: "linux-amd64"
+    node_exporter_listen: "0.0.0.0:9100"
+    node_exporter_user: "node_exporter"
+    node_exporter_bin: "/usr/local/bin/node_exporter"
+    node_exporter_tmp_dir: "/tmp/node_exporter_{{ node_exporter_version }}"
+    node_exporter_tarball: "node_exporter-{{ node_exporter_version }}.{{ node_exporter_arch }}.tar.gz"
+    node_exporter_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/{{ node_exporter_tarball }}"
+    node_exporter_unit_path: "/etc/systemd/system/node_exporter.service"
+  tasks:
+    - name: Ensure prerequisites (RHEL)
+      ansible.builtin.dnf:
+        name:
+          - ca-certificates
+          - curl
+          - tar
+        state: present
+
+    - name: Ensure node_exporter user exists (RHEL)
+      ansible.builtin.user:
+        name: "{{ node_exporter_user }}"
+        system: true
+        shell: /sbin/nologin
+        create_home: false
+
+    - name: Create temp dir (RHEL)
+      ansible.builtin.file:
+        path: "{{ node_exporter_tmp_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Download node_exporter tarball (RHEL)
+      ansible.builtin.get_url:
+        url: "{{ node_exporter_url }}"
+        dest: "{{ node_exporter_tmp_dir }}/{{ node_exporter_tarball }}"
+        mode: "0644"
+
+    - name: Extract node_exporter tarball (RHEL)
+      ansible.builtin.unarchive:
+        src: "{{ node_exporter_tmp_dir }}/{{ node_exporter_tarball }}"
+        dest: "{{ node_exporter_tmp_dir }}"
+        remote_src: true
+
+    - name: Install node_exporter binary to /usr/local/bin (RHEL)
+      ansible.builtin.copy:
+        src: "{{ node_exporter_tmp_dir }}/node_exporter-{{ node_exporter_version }}.{{ node_exporter_arch }}/node_exporter"
+        dest: "{{ node_exporter_bin }}"
+        mode: "0755"
+        owner: root
+        group: root
+        remote_src: true
+
+    - name: Install systemd unit (RHEL)
+      ansible.builtin.copy:
+        dest: "{{ node_exporter_unit_path }}"
+        mode: "0644"
+        owner: root
+        group: root
+        content: |
+          [Unit]
+          Description=Prometheus Node Exporter
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          User={{ node_exporter_user }}
+          Group={{ node_exporter_user }}
+          Type=simple
+          ExecStart={{ node_exporter_bin }} --web.listen-address={{ node_exporter_listen }}
+          Restart=on-failure
+          RestartSec=2s
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd (RHEL)
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Enable and start node_exporter (RHEL)
+      ansible.builtin.systemd:
+        name: node_exporter
+        enabled: true
+        state: started
+
+    - name: Verify node_exporter is listening on 9100 (RHEL)
+      ansible.builtin.command: ss -ltnp
+      register: ss_out
+      changed_when: false
+
+    - name: Assert node_exporter is listening (RHEL)
+      ansible.builtin.assert:
+        that:
+          - "':9100' in ss_out.stdout"
+        fail_msg: "node_exporter is not listening on :9100 on {{ inventory_hostname }}"
+
+    - name: Remove node_exporter temp dir (RHEL)
+      ansible.builtin.file:
+       path: "{{ node_exporter_tmp_dir }}"
+       state: absent
+

@@ -1,0 +1,2 @@
+# Node exporter configuration for RHEL / AlmaLinux hosts
+node_exporter_version: "1.8.2"

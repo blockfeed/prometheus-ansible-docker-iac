@@ -1,0 +1,11 @@
+{% set rhel = groups.get('node_exporters_rhel', []) %}
+{% set arch = groups.get('node_exporters_arch', []) %}
+{% set docker = groups.get('node_exporters_docker', []) %}
+
+{% for h in (rhel + arch + docker) | unique %}
+- targets: ["{{ hostvars[h].ansible_host }}:9100"]
+  labels:
+    job: node
+    nodename: "{{ h }}"
+{% endfor %}
+

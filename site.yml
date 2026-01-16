@@ -1,17 +1,37 @@
----
-# Run everything (Docker bootstrap then monitoring stack):
+# site.yml
+#
+# Role-oriented orchestration entrypoint
+#
+# Inventory intent:
+# - monitoring_servers : full Prometheus/Grafana/Alertmanager stack
+# - monitored_hosts    : exporters only (node_exporter, cadvisor, etc)
+# - kind_hosts         : Docker + KIND prereqs / cluster lifecycle
+#
+# Safe defaults:
+# - Monitoring stack ONLY runs on monitoring_servers
+# - Exporters run on monitored_hosts
+# - Docker runs where containers are required
+#
+# Examples:
 #   ansible-playbook -i inventory/hosts.ini site.yml -K
-#
-# Run only Docker bootstrap:
 #   ansible-playbook -i inventory/hosts.ini site.yml -K --tags docker
-#
-# Run only monitoring stack:
+#   ansible-playbook -i inventory/hosts.ini site.yml -K --tags exporters
 #   ansible-playbook -i inventory/hosts.ini site.yml -K --tags monitoring
+#   ansible-playbook -i inventory/hosts.ini site.yml -K --tags kind
 #
-- name: Docker bootstrap
+
+- name: Docker bootstrap (container runtime prereqs)
   import_playbook: playbooks/docker-bootstrap.yml
   tags: [docker]
 
-- name: Monitoring stack
+- name: Exporters (node_exporter, cadvisor)
+  import_playbook: playbooks/exporters.yml
+  tags: [exporters]
+
+- name: Monitoring stack (Prometheus, Alertmanager, Grafana)
   import_playbook: playbooks/monitoring-stack.yml
   tags: [monitoring]
+
+- name: KIND hosts (Kubernetes-in-Docker)
+  import_playbook: playbooks/kind-cluster.yml
+  tags: [kind]

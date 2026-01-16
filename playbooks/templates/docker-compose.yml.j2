@@ -14,6 +14,7 @@ services:
     volumes:
       - "{{ monitoring_project_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
       - "{{ monitoring_project_dir }}/alerts.yml:/etc/prometheus/alerts.yml:ro"
+      - "{{ monitoring_project_dir }}/targets:/etc/prometheus/targets:ro"
       - "{{ monitoring_data_root }}/prometheus/data:/prometheus"
     restart: unless-stopped
     depends_on:

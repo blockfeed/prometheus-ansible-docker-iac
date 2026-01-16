@@ -1,6 +1,6 @@
 ---
 - name: Deploy Prometheus + Alertmanager + Grafana + Node Exporter + cAdvisor with Docker Compose
-  hosts: monitoring_hosts
+  hosts: monitoring_servers
   become: true
   gather_facts: true
 
@@ -130,3 +130,15 @@
       ansible.builtin.debug:
         msg: "{{ docker_ps.stdout }}"
       tags: [monitoring, verify]
+
+    - name: Ensure Prometheus targets directory exists
+      file:
+        path: "{{ monitoring_project_dir }}/targets"
+        state: directory
+        mode: "0755"
+    
+    - name: Render node_exporter targets
+      template:
+        src: node_exporters.targets.yml.j2
+        dest: "{{ monitoring_project_dir }}/targets/node_exporters.yml"
+        mode: "0644"

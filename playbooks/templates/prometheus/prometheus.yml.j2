@@ -16,10 +16,11 @@ scrape_configs:
     static_configs:
       - targets: ["prometheus:9090"]
 
-  # Host-level metrics (CPU, RAM, disk, network) via Node Exporter.
+  # Node exporters (file-based service discovery)
   - job_name: "node"
-    static_configs:
-      - targets: ["node-exporter:9100"]
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/node_exporters.yml
 
   # Container-level metrics (per-container CPU/mem/fs) via cAdvisor.
   - job_name: "cadvisor"

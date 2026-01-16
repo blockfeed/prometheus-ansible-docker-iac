@@ -1,0 +1,83 @@
+---
+- name: Create/manage a local KIND cluster on the target host
+  hosts: kind_hosts
+  tags: [kind]
+  gather_facts: true
+
+  vars:
+    kind_bin: /usr/local/bin/kind
+    kubectl_bin: /usr/local/bin/kubectl
+    kind_config_path: "{{ ansible_facts['env']['HOME'] }}/.config/kind/{{ kind_cluster_name }}.yaml"
+    kubeconfig_path: "{{ ansible_facts['env']['HOME'] }}/.kube/kind-{{ kind_cluster_name }}.config"
+    docker_bin: /usr/bin/docker
+
+  tasks:
+    - name: Verify Docker is reachable (unprivileged)
+      ansible.builtin.command: "{{ docker_bin }} info"
+      changed_when: false
+
+    - name: Ensure directories exist (config + kube)
+      become: true
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+      loop:
+        - "{{ ansible_facts['env']['HOME'] }}/.config/kind"
+        - "{{ ansible_facts['env']['HOME'] }}/.kube"
+
+    - name: Install kind binary (become)
+      become: true
+      ansible.builtin.get_url:
+        url: "{{ kind_download_url }}"
+        dest: "{{ kind_bin }}"
+        mode: "0755"
+        force: false
+
+    - name: Install kubectl binary (become)
+      become: true
+      ansible.builtin.get_url:
+        url: "{{ kubectl_download_url }}"
+        dest: "{{ kubectl_bin }}"
+        mode: "0755"
+        force: false
+
+    - name: Render KIND cluster config
+      ansible.builtin.template:
+        src: templates/kind-config.yaml.j2
+        dest: "{{ kind_config_path }}"
+        mode: "0644"
+
+    - name: Check existing KIND clusters
+      ansible.builtin.command: "{{ kind_bin }} get clusters"
+      register: kind_clusters
+      changed_when: false
+
+    - name: Create KIND cluster when missing
+      ansible.builtin.command: >
+        {{ kind_bin }} create cluster
+        --name {{ kind_cluster_name }}
+        --config {{ kind_config_path }}
+        --wait {{ kind_wait }}
+      when: kind_cluster_name not in (kind_clusters.stdout_lines | default([]))
+
+    - name: Export kubeconfig for this cluster to a stable path
+      ansible.builtin.command: >
+        {{ kind_bin }} get kubeconfig
+        --name {{ kind_cluster_name }}
+      register: kubeconfig_out
+      changed_when: false
+
+    - name: Write kubeconfig file
+      ansible.builtin.copy:
+        dest: "{{ kubeconfig_path }}"
+        content: "{{ kubeconfig_out.stdout }}"
+        mode: "0600"
+
+    - name: Verify cluster access
+      ansible.builtin.command: >
+        {{ kubectl_bin }} --kubeconfig {{ kubeconfig_path }} get nodes
+      changed_when: false
+
